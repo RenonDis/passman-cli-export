@@ -1,0 +1,41 @@
+{
+  "name": "passman-cli-export",
+  "version": "1.0.0",
+  "description": "A simple tool to export passman data as csv",
+  "main": "src/index.js",
+  "bin": {
+    "sjcl": "src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RenonDis/passman-cli-export.git"
+  },
+  "keywords": [
+    "passman",
+    "export",
+    "cli"
+  ],
+  "dependencies": {
+    "commander": "^2.19.0",
+    "fs": "0.0.1-security",
+    "prompts": "^2.0.3",
+    "request": "^2.88.0",
+    "sjcl": "^1.0.8"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Renon Dis",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/RenonDis/passman-cli-export"
+  },
+  "homepage": "https://github.com/RenonDis/passman-cli-export#readme",
+  "pkg": {
+    "targets": [
+      "node10"
+    ]
+  }
+}
