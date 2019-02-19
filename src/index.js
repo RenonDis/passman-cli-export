@@ -80,7 +80,6 @@ async function main() {
     });
     baseURL = baseURL.value;
   };
-  console.log(typeof(baseURL));
 
   if (!username) {
     var username = await prompts({
