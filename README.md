@@ -1,4 +1,4 @@
-# SJCL Command Line Interface (sjcl-cli)
+# Passman CLI Export
 
 ## Summary
 
@@ -8,19 +8,12 @@ Export your passman vault data from command line.
 
 * [NodeJS](https://nodejs.org/en/)
 
-## Installation
+## Usage
 
 ```bash
    git clone https://github.com/RenonDis/passman-cli-export
 
    cd passman-cli-export
 
-   sudo npm install -g
-```
-
-## Usage
-
-Launch it:
-```bash
-    passman-cli-export
+    node src/index.js
 ```
