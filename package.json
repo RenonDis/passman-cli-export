@@ -4,7 +4,7 @@
   "description": "A simple tool to export passman data as csv",
   "main": "src/index.js",
   "bin": {
-    "sjcl": "src/index.js"
+    "pexp": "src/index.js"
   },
   "repository": {
     "type": "git",

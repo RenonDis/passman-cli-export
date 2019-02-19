@@ -4,19 +4,34 @@ const request = require('request');
 const sjcl = require('sjcl');
 const fs = require('fs');
 const prompts = require('prompts');
-//const program = require('commander');
+const program = require('commander');
 
 var fields = [
-    'description',
-    'username',
-    'password',
-    'files',
-    'custom_fields',
-    'otp',
-    'email',
-    'tags',
-    'url',
+  'description',
+  'username',
+  'password',
+  'files',
+  'custom_fields',
+  'otp',
+  'email',
+  'tags',
+  'url',
 ]
+
+var baseURL,
+    username,
+    password,
+    selectedVault,
+    _key;
+
+program
+  .version('0.1.0')
+  .option('-d, --domain [value]', 'Nextcloud domain')
+  .option('-u, --username [value]', 'Nextcloud username')
+  .option('-p, --password [value]', 'Nextcloud password')
+  .option('-n, --vault-number <n>', 'Vault number', parseInt, 1)
+  .option('-k, --key [value]', 'Passman vault key')
+  .parse(process.argv);
 
 
 function getVaults(options) {
@@ -41,31 +56,56 @@ function getVaultData(options, guid) {
 
 
 async function main() {
+  if (program.domain) {
+    baseURL = program.domain;
+  }
+  if (program.username) {
+    username = program.username;
+  }
+  if (program.password) {
+    password = program.password;
+  }
+  if (program.vaultNumber) {
+    selectedVault = program.vaultNumber;
+  }
+  if (program.key) {
+    _key = program.key;
+  }
 
-  const baseURL = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Nextcloud instance URL',
-  });
+  if (!baseURL) {
+    var baseURL = await prompts({
+      type: 'text',
+      name: 'value',
+      message: 'Nextcloud instance URL',
+    });
+    baseURL = baseURL.value;
+  };
+  console.log(typeof(baseURL));
 
-  const username = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Username',
-  });
+  if (!username) {
+    var username = await prompts({
+      type: 'text',
+      name: 'value',
+      message: 'Username',
+    });
+    username = username.value;
+  };
 
-  const password = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Password',
-    style: 'password',
-  });
+  if (!password) {
+    var password = await prompts({
+      type: 'text',
+      name: 'value',
+      message: 'Password',
+      style: 'password',
+    });
+    password = password.value;
+  };
 
   var options = {
-    url: baseURL.value + '/apps/passman/api/v2/vaults',
+    url: baseURL + '/apps/passman/api/v2/vaults',
     auth: {
-      user: username.value,
-      password: password.value,
+      user: username,
+      password: password,
     }
   }
 
@@ -81,28 +121,40 @@ async function main() {
   console.log('\n Available vaults :');
 
   vaults.forEach(function(d, i) {
-    console.log('\t' + i + '. ' + d.name);
+    console.log('\t' + (i+1) + '. ' + d.name);
     vaultsNames.push(d.name);
   });
 
-  var numV = vaultsNames.length - 1;
+  var numV = vaultsNames.length;
 
-  const selectedVault = await prompts({
-    type: 'number',
-    name: 'value',
-    message: 'Select vault number',
-    validate: value => value > numV ? 'Id should be between 0 and ' + numV : true
-  });
+  if (numV > 1 && !selectedVault) {
+    const selectedVaultObj = await prompts({
+      type: 'number',
+      name: 'value',
+      message: 'Select vault number',
+      validate: value => value > numV ? 'Select vault from 1 to ' + numV : true
+    });
+    var selectedVault = selectedVaultObj.value - 1;
+  } else if (numV == 1) {
+    console.log('Only one vault available, exporting..');
+    var selectedVault = 0;
+  } else if (numV == 0) {
+    console.log('No vaults available, aborting..');
+    return;
+  }
 
-  var data = await getVaultData(options, vaults[selectedVault.value].guid);
+  var data = await getVaultData(options, vaults[selectedVault].guid);
   var credentials = JSON.parse(data).credentials;
 
-  const _key = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Vault password',
-    style: 'password',
-  });
+  if (!_key) {
+    var _key = await prompts({
+      type: 'text',
+      name: 'value',
+      message: 'Vault password',
+      style: 'password',
+    });
+    _key = _key.value;
+  };
 
   var stream = fs.createWriteStream("pass.csv");
 
@@ -117,7 +169,7 @@ async function main() {
         var ciphertext = Buffer.from(d[f], 'base64').toString("ascii");
         var rp = {};
         try {
-          var cleartext = sjcl.decrypt(_key.value, ciphertext, ciphertext, rp);
+          var cleartext = sjcl.decrypt(_key, ciphertext, ciphertext, rp);
           line += cleartext + ',';
         } catch(err) {
           error = err;
@@ -137,8 +189,3 @@ async function main() {
 }
 
 main();
-// program.command('passman-cli-export')
-//   .description('Interactive prompt for passman export');
-//
-// program.on('passman-cli-export', () => { main() })
-//   .on('*', () => { program.help() });
