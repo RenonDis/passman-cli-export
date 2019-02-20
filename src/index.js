@@ -5,6 +5,8 @@ const sjcl = require('sjcl');
 const fs = require('fs');
 const prompts = require('prompts');
 const program = require('commander');
+const homedir = require('os').homedir();
+const configPath = homedir + '/.config/pexp/config.json';
 
 var fields = [
   'description',
@@ -18,20 +20,43 @@ var fields = [
   'url',
 ]
 
-var baseURL,
-    username,
-    password,
-    selectedVault,
-    _key;
+var config = {
+  baseURL: "",
+  username: "",
+  password: "",
+  selectedVault: "",
+  _key: "",
+}
 
 program
   .version('0.1.0')
-  .option('-d, --domain [value]', 'Nextcloud domain')
+  .option('-d, --domain [value]', 'Nextcloud base URL')
   .option('-u, --username [value]', 'Nextcloud username')
-  .option('-p, --password [value]', 'Nextcloud password')
   .option('-n, --vault-number <n>', 'Vault number', parseInt, 1)
-  .option('-k, --key [value]', 'Passman vault key')
   .parse(process.argv);
+
+
+function loadConfig() {
+  return new Promise(function(resolve, reject) {
+    const loadedConfig = require(configPath);
+    if (loadedConfig) {
+    resolve(loadedConfig);
+    } else {
+      reject('kjkj');
+    }
+  });
+}
+
+function checkConfig(loadedConfig) {
+  for (var key in config) {
+    if (!loadedConfig[key]) {
+      console.log('Warning : ' + key + ' field missing from config file !');
+      console.log('Config file ignored..');
+      return false;
+    }
+  }
+  return true;
+}
 
 
 function getVaults(options) {
@@ -55,56 +80,72 @@ function getVaultData(options, guid) {
 };
 
 
+process.on('unhandledRejection', (reason, p) => {
+  console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+  // application specific logging, throwing an error, or other logic here
+});
+
 async function main() {
-  if (program.domain) {
-    baseURL = program.domain;
+
+  try {
+    loadedConfig = await loadConfig();
+    //loadedConfig = require(configPath);
+  } catch(err) {
+    console.log('Config file not loaded :', err);
   }
-  if (program.username) {
-    username = program.username;
-  }
-  if (program.password) {
-    password = program.password;
-  }
-  if (program.vaultNumber) {
-    selectedVault = program.vaultNumber;
-  }
-  if (program.key) {
-    _key = program.key;
+  isValidConfig = await checkConfig(loadedConfig);
+
+  // loading config only if fully valid
+  if (isValidConfig) {
+    config = loadedConfig;
+    console.log('Successfully loaded config from ' + configPath);
   }
 
-  if (!baseURL) {
-    var baseURL = await prompts({
+  // Override config file fields if specified through cli
+  if (program.domain) {
+    config.baseURL = program.domain;
+  }
+  if (program.username) {
+    config.username = program.username;
+  }
+  if (program.vaultNumber) {
+    config.selectedVault = program.vaultNumber;
+  }
+  console.log(config);
+
+  if (!config.baseURL) {
+    var baseURLPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Nextcloud instance URL',
     });
-    baseURL = baseURL.value;
+    config.baseURL = baseURLPrompt.value;
   };
 
-  if (!username) {
-    var username = await prompts({
+  if (!config.username) {
+    var usernamePrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Username',
     });
-    username = username.value;
+    config.username = usernamePrompt.value;
   };
 
-  if (!password) {
-    var password = await prompts({
+  if (!config.password) {
+    var passwordPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Password',
       style: 'password',
     });
-    password = password.value;
+    config.password = passwordPrompt.value;
   };
 
   var options = {
-    url: baseURL + '/apps/passman/api/v2/vaults',
+    url: config.baseURL + '/apps/passman/api/v2/vaults',
     auth: {
-      user: username,
-      password: password,
+      user: config.username,
+      password: config.password,
     }
   }
 
@@ -126,33 +167,33 @@ async function main() {
 
   var numV = vaultsNames.length;
 
-  if (numV > 1 && !selectedVault) {
-    const selectedVaultObj = await prompts({
+  if (numV > 1 && !config.selectedVault) {
+    const selectedVaultPrompt = await prompts({
       type: 'number',
       name: 'value',
       message: 'Select vault number',
       validate: value => value > numV ? 'Select vault from 1 to ' + numV : true
     });
-    var selectedVault = selectedVaultObj.value - 1;
+    config.selectedVault = selectedVaultPrompt.value - 1;
   } else if (numV == 1) {
     console.log('Only one vault available, exporting..');
-    var selectedVault = 0;
+    config.selectedVault = 0;
   } else if (numV == 0) {
     console.log('No vaults available, aborting..');
     return;
   }
 
-  var data = await getVaultData(options, vaults[selectedVault].guid);
+  var data = await getVaultData(options, vaults[config.selectedVault].guid);
   var credentials = JSON.parse(data).credentials;
 
-  if (!_key) {
-    var _key = await prompts({
+  if (!config._key) {
+    var _keyPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Vault password',
       style: 'password',
     });
-    _key = _key.value;
+    config._key = _keyPrompt.value;
   };
 
   var stream = fs.createWriteStream("pass.csv");
@@ -168,7 +209,7 @@ async function main() {
         var ciphertext = Buffer.from(d[f], 'base64').toString("ascii");
         var rp = {};
         try {
-          var cleartext = sjcl.decrypt(_key, ciphertext, ciphertext, rp);
+          var cleartext = sjcl.decrypt(config._key, ciphertext, ciphertext, rp);
           line += cleartext + ',';
         } catch(err) {
           error = err;
