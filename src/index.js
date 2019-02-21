@@ -8,6 +8,7 @@ const program = require('commander');
 const homedir = require('os').homedir();
 const configPath = homedir + '/.config/pexp/config.json';
 
+
 var fields = [
   'description',
   'username',
@@ -36,22 +37,25 @@ program
   .parse(process.argv);
 
 
-function loadConfig() {
-  return new Promise(function(resolve, reject) {
-    const loadedConfig = require(configPath);
-    if (loadedConfig) {
-    resolve(loadedConfig);
-    } else {
-      reject('kjkj');
+function checkPerm() {
+  fs.stat(configPath, function (err, stats) {
+    try {
+      var configPerm = '0' + (stats.mode & parseInt('777', 8)).toString(8);
+    } catch(e) {
+      return;
+    }
+    if (parseInt(configPerm[1]) > 6 | configPerm.slice(2,4) != '00') {
+      throw new Error('Error : Permission of ' + configPath + ' should be 0600 or less');
     }
   });
 }
 
+
 function checkConfig(loadedConfig) {
   for (var key in config) {
     if (!loadedConfig[key]) {
-      console.log('Warning : ' + key + ' field missing from config file !');
-      console.log('Config file ignored..');
+      console.log('Warning : ' + key + ' field missing from config file.');
+      console.log('Warning : Config file ignored.');
       return false;
     }
   }
@@ -80,20 +84,24 @@ function getVaultData(options, guid) {
 };
 
 
-process.on('unhandledRejection', (reason, p) => {
-  console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
-  // application specific logging, throwing an error, or other logic here
-});
-
 async function main() {
 
   try {
-    loadedConfig = await loadConfig();
-    //loadedConfig = require(configPath);
-  } catch(err) {
-    console.log('Config file not loaded :', err);
+    checkPerm();
+  } catch(e) {
+    console.log(e);
+    return;
   }
-  isValidConfig = await checkConfig(loadedConfig);
+
+  var isValidConfig = false;
+
+  try {
+    loadedConfig = require(configPath);
+    isValidConfig = checkConfig(loadedConfig);
+  } catch(err) {
+    console.log('Warning : Trying to load ' + configPath);
+    console.log('Warning : Config file is either missing or badly formatted.');
+  }
 
   // loading config only if fully valid
   if (isValidConfig) {
