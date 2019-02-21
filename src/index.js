@@ -7,18 +7,19 @@ const prompts = require('prompts');
 const program = require('commander');
 const homedir = require('os').homedir();
 const configPath = homedir + '/.config/pexp/config.json';
+const exportPath = 'passman-export.csv';
 
 
 var fields = [
-  'description',
   'username',
   'password',
-  'files',
-  'custom_fields',
-  'otp',
   'email',
+  'description',
   'tags',
   'url',
+  'custom_fields',
+  'files',
+  'otp',
 ]
 
 var config = {
@@ -63,7 +64,19 @@ function checkConfig(loadedConfig) {
 }
 
 
-function getVaults(options) {
+function getRequestOptions(route) {
+  return {
+    url: config.baseURL + '/apps/passman/api/v2' + route,
+    auth: {
+      user: config.username,
+      password: config.password,
+    }
+  }
+};
+
+
+function getVaults() {
+  var options = getRequestOptions('/vaults');
   return new Promise(function(resolve, reject) {
     request(options, function (error, res, body) {
       if (error) return reject(error);
@@ -73,8 +86,8 @@ function getVaults(options) {
 };
 
 
-function getVaultData(options, guid) {
-  options.url += '/' + guid;
+function getVaultData(guid) {
+  var options = getRequestOptions('/vaults/' + guid);
   return new Promise(function(resolve, reject) {
     request(options, function (error, res, body) {
       if (error) return reject(error);
@@ -83,6 +96,16 @@ function getVaultData(options, guid) {
   });
 };
 
+
+function getFile(id) {
+  var options = getRequestOptions('/file/' + id);
+  return new Promise(function(resolve, reject) {
+    request(options, function (error, res, body) {
+      if (error) return reject(error);
+      resolve(body);
+    })
+  });
+};
 
 async function main() {
 
@@ -119,7 +142,6 @@ async function main() {
   if (program.vaultNumber) {
     config.selectedVault = program.vaultNumber;
   }
-  console.log(config);
 
   if (!config.baseURL) {
     var baseURLPrompt = await prompts({
@@ -149,15 +171,7 @@ async function main() {
     config.password = passwordPrompt.value;
   };
 
-  var options = {
-    url: config.baseURL + '/apps/passman/api/v2/vaults',
-    auth: {
-      user: config.username,
-      password: config.password,
-    }
-  }
-
-  var body = await getVaults(options);
+  var body = await getVaults();
   var vaults = JSON.parse(body);
 
   if (vaults.message) {
@@ -191,7 +205,8 @@ async function main() {
     return;
   }
 
-  var data = await getVaultData(options, vaults[config.selectedVault].guid);
+  var data = await getVaultData(vaults[config.selectedVault].guid);
+  //console.log(data);
   var credentials = JSON.parse(data).credentials;
 
   if (!config._key) {
@@ -204,33 +219,64 @@ async function main() {
     config._key = _keyPrompt.value;
   };
 
-  var stream = fs.createWriteStream("pass.csv");
+
+
+
+
+  var error = '';
+  var exportCSV = '"label",' + fields.join('","') + '\n';
+
+  for (const d of credentials) {
+    exportCSV += '"' + d['label'] + '",';
+    var line = '';
+
+    for (const f of fields) {
+      var cipherText = Buffer.from(d[f], 'base64').toString("ascii");
+      var rp = {};
+      try {
+        var clearText = sjcl.decrypt(config._key, cipherText, cipherText, rp);
+
+        if (f == 'files') {
+          fileJSON = JSON.parse(clearText);
+          var files = [];
+          for (var i = 0; i < fileJSON.length; i++) {
+
+            var fileData = await getFile(fileJSON[i].file_id);
+            fileData = JSON.parse(fileData);
+            fileContent = fileData.file_data;
+            fileName = fileData.filename;
+
+            var cipherFile = Buffer.from(fileContent, 'base64').toString("ascii");
+            var cipherName = Buffer.from(fileName, 'base64').toString("ascii");
+            var clearFile = sjcl.decrypt(config._key, cipherFile, cipherFile, rp);
+            var clearName = sjcl.decrypt(config._key, cipherFile, cipherFile, rp);
+            fileData.file_data = clearFile;
+            fileData.filename = fileJSON[i].filename;
+            files.push(fileData);
+          }
+          line += JSON.stringify(files) + ',';
+        } else {
+          line += clearText + ',';
+        }
+
+      } catch(err) {
+        error = err;
+      }
+    }
+    exportCSV += line + '\n';
+  }
+
+  if (error) {
+    console.log('Error when decrypting vault data : ', error.message);
+  } else {
+    console.log('Vault successfully exported to ' + exportPath + ' !');
+  }
+
+
+  var stream = fs.createWriteStream(exportPath, { mode: 0o600 });
 
   stream.once('open', function(fd) {
-    var error = '';
-
-    stream.write(fields.join(',') + '\n');
-
-    credentials.forEach(function(d) {
-      var line = ''
-      fields.forEach(function(f) {
-        var ciphertext = Buffer.from(d[f], 'base64').toString("ascii");
-        var rp = {};
-        try {
-          var cleartext = sjcl.decrypt(config._key, ciphertext, ciphertext, rp);
-          line += cleartext + ',';
-        } catch(err) {
-          error = err;
-        }
-      });
-      stream.write(line + '\n');
-    });
-
-    if (error) {
-      console.log('Error when decrypting vault data : ', error.message);
-    } else {
-      console.log('Vault successfully exported to pass.csv !');
-    }
+    stream.write(exportCSV);
     stream.end();
   });
 
