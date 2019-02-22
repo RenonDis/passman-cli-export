@@ -23,10 +23,12 @@ This file must be located in `~/.config/pexp/config.json`, and should contain th
   "baseURL": "https://my-nextcloud-instance-url.org",
   "username": "myusername",
   "password": "mypassword",
-  "selectedVault": <vaultNumber starting from 1>,
+  "selectedVault": 1,
   "_key": "myVaultKey"
 }
 ```
+
+`selectedVault` should be the number of the vault to export, starting from 1.
 
 > Due to the sensitive content of this file, `pexp` won't work if the file's permission are wider than 0600.
 
