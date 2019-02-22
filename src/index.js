@@ -232,7 +232,7 @@ async function main() {
 
 
   let error = '';
-  let exportCSV = '"label",' + fields.join('","') + '\n';
+  let exportCSV = '"label","' + fields.join('","') + '"' + '\n';
 
   for (const d of credentials) {
     exportCSV += '"' + d['label'] + '",';
