@@ -149,13 +149,14 @@ async function main() {
   }
 
   let onCancel = p => process.exit();
+  let onEmpty = value => value == '' ? 'This cannot be empty' : true;
 
   if (!config.baseURL) {
     const baseURLPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Nextcloud instance URL',
-      validate: value => value == '' ? 'This cannot be empty' : true,
+      validate: onEmpty,
     }, { onCancel });
     config.baseURL = baseURLPrompt.value;
   };
@@ -165,7 +166,7 @@ async function main() {
       type: 'text',
       name: 'value',
       message: 'Username',
-      validate: value => value == '' ? 'This cannot be empty' : true,
+      validate: onEmpty,
     }, { onCancel });
     config.username = usernamePrompt.value;
   };
@@ -176,7 +177,7 @@ async function main() {
       name: 'value',
       message: 'Password',
       style: 'password',
-      validate: value => value == '' ? 'This cannot be empty' : true,
+      validate: onEmpty,
     }, { onCancel });
     config.password = passwordPrompt.value;
   };
@@ -224,6 +225,7 @@ async function main() {
       name: 'value',
       message: 'Vault password',
       style: 'password',
+      validate: onEmpty,
     }, { onCancel });
     config._key = _keyPrompt.value;
   };
