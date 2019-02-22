@@ -17,7 +17,7 @@ $ npm -g install passman-cli-export
 ## Configure
 
 To automate the process, you can create a file with your credentials inside.
-This file must be located in `~/.config/pexp/config.json`, and should contain the following field:
+This file must be located at `~/.config/pexp/config.json`, and should contain the following fields:
 ```json
 {
   "baseURL": "https://my-nextcloud-instance-url.org",
