@@ -34,7 +34,7 @@ program
   .version('0.1.0')
   .option('-d, --domain [value]', 'Nextcloud base URL')
   .option('-u, --username [value]', 'Nextcloud username')
-  .option('-n, --vault-number <n>', 'Vault number', parseInt, 1)
+  .option('-n, --vault-number <n>', 'Vault number', parseInt)
   .parse(process.argv);
 
 
@@ -190,15 +190,16 @@ async function main() {
     return;
   }
 
-  let vaultsNames = [];
+  // Sorting by vault id
+  vaults.sort(function(a, b) {return a.vault_id - b.vault_id});
+
   console.log('\n Available vaults :');
 
   vaults.forEach(function(d, i) {
     console.log('\t' + (i+1) + '. ' + d.name);
-    vaultsNames.push(d.name);
   });
 
-  var numV = vaultsNames.length;
+  var numV = vaults.length;
 
   if (numV > 1 && !config.selectedVault) {
     const selectedVaultPrompt = await prompts({
@@ -207,16 +208,16 @@ async function main() {
       message: 'Select vault number',
       validate: value => value > numV ? 'Select vault from 1 to ' + numV : true
     }, { onCancel });
-    config.selectedVault = selectedVaultPrompt.value - 1;
+    config.selectedVault = selectedVaultPrompt.value;
   } else if (numV == 1) {
     console.log('Only one vault available, exporting..');
-    config.selectedVault = 0;
+    config.selectedVault = 1;
   } else if (numV == 0) {
     console.log('No vaults available, aborting..');
     return;
   }
 
-  let data = await getVaultData(vaults[config.selectedVault].guid);
+  let data = await getVaultData(vaults[config.selectedVault-1].guid);
   let credentials = JSON.parse(data).credentials;
 
   if (!config._key) {
