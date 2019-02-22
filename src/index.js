@@ -46,14 +46,14 @@ function checkPerm() {
       return;
     }
     if (parseInt(configPerm[1]) > 6 | configPerm.slice(2,4) != '00') {
-      throw new Error('Error : Permission of ' + configPath + ' should be 0600 or less');
+      throw new Error('Error : Permission of ' + configPath + ' should be 0600 or less. Current is ' + configPerm);
     }
   });
 }
 
 
 function checkConfig(loadedConfig) {
-  for (var key in config) {
+  for (const key in config) {
     if (!loadedConfig[key]) {
       console.log('Warning : ' + key + ' field missing from config file.');
       console.log('Warning : Config file ignored.');
@@ -76,7 +76,7 @@ function getRequestOptions(route) {
 
 
 function getVaults() {
-  var options = getRequestOptions('/vaults');
+  let options = getRequestOptions('/vaults');
   return new Promise(function(resolve, reject) {
     request(options, function (error, res, body) {
       if (error) return reject(error);
@@ -87,7 +87,7 @@ function getVaults() {
 
 
 function getVaultData(guid) {
-  var options = getRequestOptions('/vaults/' + guid);
+  let options = getRequestOptions('/vaults/' + guid);
   return new Promise(function(resolve, reject) {
     request(options, function (error, res, body) {
       if (error) return reject(error);
@@ -98,7 +98,7 @@ function getVaultData(guid) {
 
 
 function getFile(id) {
-  var options = getRequestOptions('/file/' + id);
+  let options = getRequestOptions('/file/' + id);
   return new Promise(function(resolve, reject) {
     request(options, function (error, res, body) {
       if (error) return reject(error);
@@ -128,8 +128,13 @@ async function main() {
 
   // loading config only if fully valid
   if (isValidConfig) {
-    config = loadedConfig;
-    console.log('Successfully loaded config from ' + configPath);
+    // Reset credentials if cli options
+    if (program.domain || program.username) {
+      console.log('Ignoring config file for current options.');
+    } else  {
+      config = loadedConfig;
+      console.log('Successfully loaded config from ' + configPath);
+    }
   }
 
   // Override config file fields if specified through cli
@@ -143,43 +148,48 @@ async function main() {
     config.selectedVault = program.vaultNumber;
   }
 
+  let onCancel = p => process.exit();
+
   if (!config.baseURL) {
-    var baseURLPrompt = await prompts({
+    const baseURLPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Nextcloud instance URL',
-    });
+      validate: value => value == '' ? 'This cannot be empty' : true,
+    }, { onCancel });
     config.baseURL = baseURLPrompt.value;
   };
 
   if (!config.username) {
-    var usernamePrompt = await prompts({
+    const usernamePrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Username',
-    });
+      validate: value => value == '' ? 'This cannot be empty' : true,
+    }, { onCancel });
     config.username = usernamePrompt.value;
   };
 
   if (!config.password) {
-    var passwordPrompt = await prompts({
+    const passwordPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Password',
       style: 'password',
-    });
+      validate: value => value == '' ? 'This cannot be empty' : true,
+    }, { onCancel });
     config.password = passwordPrompt.value;
   };
 
-  var body = await getVaults();
-  var vaults = JSON.parse(body);
+  let body = await getVaults();
+  let vaults = JSON.parse(body);
 
   if (vaults.message) {
     console.log(vaults.message);
     return;
   }
 
-  var vaultsNames = [];
+  let vaultsNames = [];
   console.log('\n Available vaults :');
 
   vaults.forEach(function(d, i) {
@@ -195,7 +205,7 @@ async function main() {
       name: 'value',
       message: 'Select vault number',
       validate: value => value > numV ? 'Select vault from 1 to ' + numV : true
-    });
+    }, { onCancel });
     config.selectedVault = selectedVaultPrompt.value - 1;
   } else if (numV == 1) {
     console.log('Only one vault available, exporting..');
@@ -205,51 +215,46 @@ async function main() {
     return;
   }
 
-  var data = await getVaultData(vaults[config.selectedVault].guid);
-  //console.log(data);
-  var credentials = JSON.parse(data).credentials;
+  let data = await getVaultData(vaults[config.selectedVault].guid);
+  let credentials = JSON.parse(data).credentials;
 
   if (!config._key) {
-    var _keyPrompt = await prompts({
+    const _keyPrompt = await prompts({
       type: 'text',
       name: 'value',
       message: 'Vault password',
       style: 'password',
-    });
+    }, { onCancel });
     config._key = _keyPrompt.value;
   };
 
 
-
-
-
-  var error = '';
-  var exportCSV = '"label",' + fields.join('","') + '\n';
+  let error = '';
+  let exportCSV = '"label",' + fields.join('","') + '\n';
 
   for (const d of credentials) {
     exportCSV += '"' + d['label'] + '",';
-    var line = '';
+    let line = '';
 
     for (const f of fields) {
-      var cipherText = Buffer.from(d[f], 'base64').toString("ascii");
-      var rp = {};
+      let cipherText = Buffer.from(d[f], 'base64').toString("ascii");
+      let rp = {};
       try {
-        var clearText = sjcl.decrypt(config._key, cipherText, cipherText, rp);
+        let clearText = sjcl.decrypt(config._key, cipherText, cipherText, rp);
 
         if (f == 'files') {
           fileJSON = JSON.parse(clearText);
-          var files = [];
-          for (var i = 0; i < fileJSON.length; i++) {
+          let files = [];
+          for (let i = 0; i < fileJSON.length; i++) {
 
-            var fileData = await getFile(fileJSON[i].file_id);
+            let fileData = await getFile(fileJSON[i].file_id);
             fileData = JSON.parse(fileData);
             fileContent = fileData.file_data;
             fileName = fileData.filename;
 
-            var cipherFile = Buffer.from(fileContent, 'base64').toString("ascii");
-            var cipherName = Buffer.from(fileName, 'base64').toString("ascii");
-            var clearFile = sjcl.decrypt(config._key, cipherFile, cipherFile, rp);
-            var clearName = sjcl.decrypt(config._key, cipherFile, cipherFile, rp);
+            let cipherFile = Buffer.from(fileContent, 'base64').toString("ascii");
+            let clearFile = sjcl.decrypt(config._key, cipherFile, cipherFile, rp);
+
             fileData.file_data = clearFile;
             fileData.filename = fileJSON[i].filename;
             files.push(fileData);
@@ -268,12 +273,12 @@ async function main() {
 
   if (error) {
     console.log('Error when decrypting vault data : ', error.message);
+    return;
   } else {
     console.log('Vault successfully exported to ' + exportPath + ' !');
   }
 
-
-  var stream = fs.createWriteStream(exportPath, { mode: 0o600 });
+  let stream = fs.createWriteStream(exportPath, { mode: 0o600 });
 
   stream.once('open', function(fd) {
     stream.write(exportCSV);
