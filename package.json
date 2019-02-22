@@ -1,6 +1,6 @@
 {
   "name": "passman-cli-export",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A simple tool to export passman data as csv",
   "main": "src/index.js",
   "bin": {
