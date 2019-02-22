@@ -48,6 +48,8 @@ If your config file is either non valid or missing, running `pexp` will just pro
 
 If successful, `pexp` will export the credentials in the current working directory as `passman-export.csv` with 0600 permissions.
 
+> It is highly advised that you encrypt the resulting export, with `gpg` for instance.
+
 
 ```bash
 Usage: pexp [options]
