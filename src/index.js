@@ -10,7 +10,7 @@ const configPath = homedir + '/.config/pexp/config.json';
 const exportPath = 'passman-export.csv';
 
 
-var fields = [
+var cipher_fields = [
   'username',
   'password',
   'email',
@@ -35,6 +35,7 @@ program
   .option('-d, --domain [value]', 'Nextcloud base URL')
   .option('-u, --username [value]', 'Nextcloud username')
   .option('-n, --vault-number <n>', 'Vault number', parseInt)
+  .option('-f, --format [value]', 'Output format',  /^(csv|json)$/i, 'csv')
   .parse(process.argv);
 
 
@@ -106,6 +107,7 @@ function getFile(id) {
     })
   });
 };
+
 
 async function main() {
 
@@ -233,13 +235,21 @@ async function main() {
 
 
   let error = '';
-  let exportCSV = '"label","' + fields.join('","') + '"' + '\n';
+  let exportCSV = '"label","' + cipher_fields.join('","') + '"' + '\n';
 
   for (const d of credentials) {
     exportCSV += '"' + d['label'] + '",';
     let line = '';
 
-    for (const f of fields) {
+    function save(value, key='') {
+      if (program.format == 'csv') {
+        line += value + ',';
+      } else {
+        d[key] = JSON.parse(value);
+      }
+    }
+
+    for (const f of cipher_fields) {
       let cipherText = Buffer.from(d[f], 'base64').toString("ascii");
       let rp = {};
       try {
@@ -262,9 +272,9 @@ async function main() {
             fileData.filename = fileJSON[i].filename;
             files.push(fileData);
           }
-          line += JSON.stringify(files) + ',';
+          save(JSON.stringify(files), f);
         } else {
-          line += clearText + ',';
+          save(clearText, f);
         }
 
       } catch(err) {
@@ -284,7 +294,11 @@ async function main() {
   let stream = fs.createWriteStream(exportPath, { mode: 0o600 });
 
   stream.once('open', function(fd) {
-    stream.write(exportCSV);
+    if (program.format == 'csv') {
+      stream.write(exportCSV);
+    } else {
+      stream.write(JSON.stringify(credentials));
+    }
     stream.end();
   });
 
