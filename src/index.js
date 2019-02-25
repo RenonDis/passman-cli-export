@@ -7,8 +7,6 @@ const prompts = require('prompts');
 const program = require('commander');
 const homedir = require('os').homedir();
 const configPath = homedir + '/.config/pexp/config.json';
-const exportPath = 'passman-export.csv';
-
 
 var cipher_fields = [
   'username',
@@ -37,6 +35,8 @@ program
   .option('-n, --vault-number <n>', 'Vault number', parseInt)
   .option('-f, --format [value]', 'Output format',  /^(csv|json)$/i, 'csv')
   .parse(process.argv);
+
+const exportPath = 'passman-export.' + program.format;
 
 
 function checkPerm() {
